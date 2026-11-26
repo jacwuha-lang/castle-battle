@@ -25,6 +25,7 @@ import os
 import random
 import re
 import socket
+import sys
 import threading
 import time
 import urllib.parse
@@ -1849,6 +1850,18 @@ def lan_ips():
     return [ip for r, ip in good if r >= 0]
 
 
+class QuietHTTPServer(ThreadingHTTPServer):
+    """浏览器关标签页、断长轮询会把连接掐掉，属于正常现象，不往控制台刷 traceback。"""
+
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (ConnectionAbortedError, ConnectionResetError, BrokenPipeError, TimeoutError)):
+            return
+        super().handle_error(request, client_address)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Castle Battle - standalone quiz PK server")
     ap.add_argument("--port", type=int, default=8788)
@@ -1858,7 +1871,7 @@ def main():
 
     os.makedirs(PROFILE_DIR, exist_ok=True)
     start_pk_tick()
-    httpd = ThreadingHTTPServer((args.host, args.port), Handler)
+    httpd = QuietHTTPServer((args.host, args.port), Handler)
     httpd.daemon_threads = True
 
     url = "http://127.0.0.1:%d/index.html" % args.port
