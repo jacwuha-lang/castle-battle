@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# 运行时生成的玩家档案（server.py 会自动创建该目录）
+profiles/
+!profiles/.gitkeep
+
+# 日志与系统文件
+*.log
+.DS_Store
+Thumbs.db

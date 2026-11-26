@@ -1,0 +1,981 @@
+/* ============================================================
+   pk.css — 武道擂台
+   上半屏是 3D 战场，下半屏是题目；两边各自看自己的镜头。
+   配色跟着主 App 的奶油底 + 暖橙，战场上再用蓝/红区分两边。
+   ============================================================ */
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+.hide { display: none !important; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #0d1620;
+  color: #3a2a22;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Segoe UI", sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  overscroll-behavior: none;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+
+/* ---------------- 战场 ---------------- */
+#stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: #bfe9ff;
+  overflow: hidden;
+}
+
+#stageCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#hud {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 8px);
+  left: 10px;
+  right: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  pointer-events: none;
+  transition: opacity .25s;
+}
+
+#hud .side { flex: 1 1 0; min-width: 0; }
+#hud .side.right { text-align: right; }
+
+/* 声音开关：贴在 HUD 右上，小一点，别抢血条的视线 */
+#hud .mute {
+  position: absolute;
+  right: 0;
+  bottom: -30px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .26);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+  backdrop-filter: blur(4px);
+  transition: transform .15s, background .15s;
+}
+#hud .mute:active { transform: scale(.9); }
+#hud .mute.off { background: rgba(0, 0, 0, .12); opacity: .75; }
+
+#hud .nm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .55);
+  margin-bottom: 4px;
+}
+#hud .side.right .nm { justify-content: flex-end; }
+#hud .nm b {
+  font-size: 13px;
+  max-width: 9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#hud .nm span {
+  font-size: 10px;
+  padding: 0 6px;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, .3);
+}
+/* 城堡等级：金底小牌，升级时弹一下 */
+#hud .nm .lv {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 0 5px;
+  border-radius: 5px;
+  color: #2b2116;
+  background: linear-gradient(180deg, #ffe6a6, #f7c55f);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .35);
+}
+#hud .nm .lv.up { animation: lvpop .6s ease; }
+@keyframes lvpop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.5); }
+  100% { transform: scale(1); }
+}
+#hud .comboNext {
+  font-size: 10px;
+  color: rgba(255, 255, 255, .85);
+  margin-top: 1px;
+  min-height: 12px;
+  letter-spacing: .2px;
+}
+
+#hud .bar {
+  height: 12px;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, .32);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .3);
+}
+#hud .bar i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  border-radius: 99px;
+  transition: width .22s ease;
+}
+#hpMe { background: linear-gradient(180deg, #7fb4ff, #4a86e8); }
+#hpOp { background: linear-gradient(180deg, #ff9b9b, #e8595f); float: right; }
+
+#hud .center {
+  flex: 0 0 auto;
+  text-align: center;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .55);
+}
+#hud .clock {
+  font-size: 17px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .5px;
+}
+#hud .combo {
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: 1px;
+  color: #ffe08a;
+  min-height: 14px;
+}
+
+/* 沙盒角标：pk.html?free=1 时挂在血条下面，全程提醒这一局不碰星星。
+   位置很讲究：
+   - 不用 absolute 挂在 #stage 里，会被大厅 veil 的毛玻璃糊掉；
+   - 不用底部，手机键盘会把它压在 V 键上；
+   所以 fixed + 贴血条下沿 + z-index 40，谁遮得住谁。 */
+.sandbox {
+  position: fixed;
+  left: 10px;
+  top: calc(env(safe-area-inset-top) + 58px);
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .4px;
+  color: #4a3400;
+  background: rgba(255, 205, 96, .95);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .22);
+  pointer-events: none;
+  z-index: 40;
+}
+.sandbox.hide { display: none; }
+
+.banner {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%) scale(.7);
+  padding: 10px 22px;
+  border-radius: 99px;
+  background: rgba(255, 250, 240, .96);
+  color: #b4650f;
+  font-size: 16px;
+  font-weight: 800;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .22);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s, transform .2s;
+}
+.banner.on {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%) translateY(6px);
+  max-width: 88%;
+  padding: 8px 16px;
+  border-radius: 99px;
+  background: rgba(20, 24, 30, .82);
+  color: #fff;
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity .2s, transform .2s;
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ---------------- 题目面板 ----------------
+   上半屏是战场，下半屏是一张「作业本」：奶油纸底、木条压边。
+   字要大、格子要大，小朋友站着点也不会点歪。 */
+#panel {
+  position: relative;
+  flex: 0 0 auto;
+  height: 40%;
+  min-height: 250px;
+  padding: 12px 12px calc(env(safe-area-inset-bottom) + 8px);
+  background:
+    radial-gradient(120% 60% at 50% 0%, #fffdf8 0%, #fff6ea 55%, #ffeeda 100%);
+  border-radius: 22px 22px 0 0;
+  margin-top: -20px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -10px 28px rgba(90, 60, 25, .16);
+}
+/* 顶部那道木条：看起来像钉在战场下面的一块木板 */
+#panel::before {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 6px;
+  border-radius: 22px 22px 0 0;
+  background: linear-gradient(90deg, #f0bc83, #ffd9a8 30%, #f6c68d 60%, #ffd9a8);
+  box-shadow: inset 0 -2px 0 rgba(180, 130, 70, .18);
+}
+
+#qmeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: #a5815c;
+}
+#qmeta .tag {
+  padding: 2px 10px;
+  border-radius: 99px;
+  background: linear-gradient(180deg, #ffe9c9, #ffdca8);
+  color: #b4650f;
+  font-weight: 800;
+  letter-spacing: .5px;
+  box-shadow: 0 1px 0 #f0c48d;
+}
+#qmeta .score {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: #b08a63;
+}
+
+/* 扣血买提示 */
+.hintbtn {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 99px;
+  background: linear-gradient(180deg, #ffc9c9, #ffa8a8);
+  color: #a03030;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 2px 0 #e08a8a;
+  cursor: pointer;
+  transition: transform .08s, filter .15s;
+}
+.hintbtn .ico { font-size: 12px; }
+.hintbtn .cost {
+  background: rgba(255, 255, 255, .75);
+  border-radius: 99px;
+  padding: 0 5px;
+  font-size: 10px;
+  color: #b34a4a;
+}
+.hintbtn:active { transform: translateY(1px); box-shadow: 0 1px 0 #e08a8a; }
+.hintbtn:disabled { filter: grayscale(.55) opacity(.55); box-shadow: none; }
+.hintbtn.done { background: linear-gradient(180deg, #e6e0d8, #d8d1c7); color: #8f8478; }
+
+#qbody {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding-top: 6px;
+}
+
+/* ---- 单词题：一张题卡 + 键盘 ---- */
+.qwrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.qwrap.word {
+  position: relative;
+  padding: 4px 8px 6px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 2px 0 #f2e2cd, 0 0 0 2px #fffdf9 inset;
+}
+
+/* 大小写切换：小小一颗挂卡片右上角，不占键盘那一行的位置 */
+.casebtn {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  padding: 3px 9px;
+  border: 0;
+  border-radius: 99px;
+  background: #fff2dc;
+  color: #c07a2c;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  letter-spacing: .3px;
+  box-shadow: 0 1px 0 #f0dcc0;
+  cursor: pointer;
+  transition: transform .12s, background .15s, color .15s;
+}
+.casebtn:active { transform: scale(.94); }
+.casebtn.low { background: #e8f0ff; color: #4a72c8; box-shadow: 0 1px 0 #d3e0f5; }
+.qwrap .cn {
+  font-size: 28px;
+  font-weight: 800;
+  color: #3a2a22;
+  letter-spacing: .5px;
+  text-align: center;
+  line-height: 1.2;
+}
+.qwrap .pos {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 1px 8px;
+  border-radius: 99px;
+  background: #f4ead9;
+  color: #8a6a4a;
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+.slots {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.slot {
+  width: 26px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: #fffaf3;
+  border: 2px solid #ffe2bd;
+  border-bottom: 3px solid #ffd3a1;
+  font-size: 19px;
+  font-weight: 800;
+  color: #2b6cd4;
+  /* 不要在这里 uppercase：大小写由 JS 按「当前模式」决定，
+     CSS 再转一次的话切到小写时槽位里还是大写，小孩会以为没切成功 */
+  transition: background .15s, color .15s, border-color .15s;
+}
+.slot.bad { color: #e25555; border-color: #f6b9b9; border-bottom-color: #ea9a9a; background: #fff3f3; }
+.slot.good { color: #2f9e44; border-color: #a9e0b4; border-bottom-color: #7fd090; background: #f1fbf3; }
+.slot.given {
+  color: #e8663d;
+  border-color: #ffc48a;
+  border-bottom-color: #ffab5e;
+  background: #fff4e2;
+  animation: givenpop .35s ease;
+}
+@keyframes givenpop {
+  0% { transform: scale(.7); }
+  60% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+/* ---- 语法题 ---- */
+.qwrap.gram { gap: 8px; justify-content: center; }
+.qwrap.gram .prompt {
+  flex: 0 0 auto;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 0 #f2e2cd;
+}
+.qwrap.gram .opts { width: 100%; }
+.prompt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 19px;
+  line-height: 1.4;
+  font-weight: 700;
+  color: #3a2a22;
+  min-height: 0;
+  overflow: hidden;
+}
+.opts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+.opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 6px 10px;
+  border-radius: 13px;
+  border: 2px solid #ffe2bd;
+  background: linear-gradient(180deg, #fff, #fffaf2);
+  color: #3a2a22;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  box-shadow: 0 2px 0 #f4e6d3;
+  transition: transform .08s, background .15s, border-color .15s;
+}
+.opt i {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 7px;
+  background: #ffeed6;
+  color: #b4650f;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+}
+.opt:active { transform: translateY(1px); box-shadow: none; }
+.opt.right { background: #eaf9ec; border-color: #7fd090; color: #1e7a35; box-shadow: 0 2px 0 #b7e6c0; }
+.opt.right i { background: #bfecc9; color: #1e7a35; }
+.opt.wrong { background: #fff0f0; border-color: #f0a3a3; color: #b02b2b; box-shadow: 0 2px 0 #f3c0c0; }
+.opt.wrong i { background: #ffdada; color: #b02b2b; }
+.opt.cut { opacity: .38; text-decoration: line-through; }
+.opt:disabled { cursor: default; }
+
+/* 数字键帽：告诉桌面用户「按 1 就能选这一项」。
+   平板是纯触摸，没有键盘，藏掉别占地方。 */
+.opt .kn {
+  margin-left: auto;
+  flex: 0 0 auto;
+  min-width: 15px;
+  padding: 1px 4px;
+  border-radius: 5px;
+  border: 1px solid #ecd9c0;
+  background: #fffdf8;
+  color: #bda88d;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .opt .kn { display: block; }
+  .opt .kn { box-shadow: 0 1px 0 #f0e2cd; }
+}
+.opt.right .kn { border-color: #bfecc9; background: #f2fdf5; color: #4f9a63; }
+.opt.wrong .kn { border-color: #f3c0c0; background: #fff6f6; color: #c56a6a; }
+
+/* ---- 字母键盘 ---- */
+.kb {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+  flex: 0 0 auto;
+}
+.key {
+  height: 40px;
+  border-radius: 11px;
+  border: 1px solid #f2ddc4;
+  background: linear-gradient(180deg, #ffffff, #fff8ec);
+  color: #3a2a22;
+  font-size: 17px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #eedbc3;
+  transition: transform .07s, background .12s, box-shadow .07s;
+}
+.key:active {
+  transform: translateY(2px);
+  background: #fff1dc;
+  box-shadow: 0 1px 0 #eedbc3;
+}
+.key.wide { grid-column: span 2; font-size: 14px; background: linear-gradient(180deg, #fdf3e6, #f7e8d6); }
+/* 物理键盘敲到这个字母：虚拟键跟着亮一下 */
+.key.hit {
+  transform: translateY(2px);
+  background: #ffeccf;
+  border-color: #f0c894;
+  box-shadow: 0 0 0 2px rgba(255, 190, 92, .35);
+}
+
+/* ---- 判定反馈 ---- */
+.fb {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  transform: translate(-50%, -50%) scale(.6);
+  font-size: 46px;
+  font-weight: 900;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 8;
+  text-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+}
+.fb.ok { color: #2f9e44; animation: fbpop .5s ease forwards; }
+.fb.no { color: #e25555; animation: fbpop 1.05s ease forwards; }
+.fb.hint { color: #e08a1e; animation: fbpop 1s ease forwards; }
+.fb b { display: block; font-size: 46px; line-height: 1; }
+.fb i {
+  display: block;
+  margin-top: 6px;
+  font-style: normal;
+  font-size: 14px;
+  font-weight: 700;
+  color: #8a6a4a;
+  max-width: 82vw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fb.no b { font-size: 38px; }
+@keyframes fbpop {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.5); }
+  30% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+  70% { opacity: 1; transform: translate(-50%, -55%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -80%) scale(.95); }
+}
+
+/* ---------------- 弹层 ---------------- */
+.veil {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(12, 20, 28, .45);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}
+.veil.hide { display: none; }
+
+.card {
+  width: min(94vw, 400px);
+  max-height: 92dvh;
+  overflow: auto;
+  padding: 20px 20px 18px;
+  border-radius: 24px;
+  background: #fff7f0;
+  box-shadow: 0 18px 50px rgba(10, 20, 30, .3);
+  text-align: center;
+  animation: cardin .26s cubic-bezier(.2, .9, .3, 1.2);
+}
+@keyframes cardin {
+  from { transform: translateY(14px) scale(.96); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.crest {
+  font-size: 34px;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+.card h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
+  letter-spacing: 2px;
+  color: #b4650f;
+}
+.card .sub {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: #8a6a4a;
+  line-height: 1.5;
+}
+.card .tiny {
+  margin: 0;
+  font-size: 12px;
+  color: #a5815c;
+  letter-spacing: 3px;
+}
+
+.wallet {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 99px;
+  background: #fff0dd;
+  font-size: 12px;
+  color: #8a6a4a;
+  margin-bottom: 10px;
+}
+.wallet b { font-size: 18px; color: #e8663d; font-variant-numeric: tabular-nums; }
+
+.fee {
+  font-size: 12px;
+  color: #8a6a4a;
+  margin-bottom: 14px;
+}
+.fee b { color: #e8663d; font-size: 15px; }
+
+.btn {
+  display: block;
+  width: 100%;
+  height: 50px;
+  border: 0;
+  border-radius: 15px;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform .08s, filter .15s;
+}
+.btn:active { transform: scale(.98); }
+.btn.main {
+  background: linear-gradient(180deg, #ffa94d, #ff7a3d);
+  color: #fff;
+  box-shadow: 0 5px 0 #e0602a;
+  margin-bottom: 10px;
+}
+.btn.main:active { box-shadow: 0 2px 0 #e0602a; transform: translateY(3px); }
+.btn.ghost {
+  background: #fff;
+  border: 2px solid #ffd9a8;
+  color: #b4650f;
+}
+.btn:disabled { filter: grayscale(.4) opacity(.6); }
+
+.join {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.join input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 50px;
+  border-radius: 15px;
+  border: 2px solid #ffd9a8;
+  background: #fff;
+  text-align: center;
+  font-family: inherit;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 6px;
+  color: #3a2a22;
+  outline: none;
+}
+.join input::placeholder { letter-spacing: 0; font-size: 14px; font-weight: 600; color: #c9ab8b; }
+.join .btn { width: auto; flex: 0 0 96px; }
+
+/* ---- AI 练功房：一格四档，点一下就直接开打 ---- */
+.aiRow {
+  margin: 0 0 10px;
+  padding-top: 11px;
+  border-top: 1px dashed #f2d6ba;
+}
+.aiTag {
+  font-size: 12px;
+  color: #8a6a4a;
+  margin-bottom: 8px;
+}
+.aiTag i {
+  font-style: normal;
+  font-weight: 800;
+  color: #e8663d;
+}
+.aiChips {
+  display: flex;
+  gap: 7px;
+}
+.chip {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 42px;
+  padding: 0;
+  border: 2px solid #ffd9a8;
+  border-radius: 13px;
+  background: #fff;
+  color: #b4650f;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform .08s, background .15s, border-color .15s;
+}
+.chip:active { transform: scale(.96); }
+.chip.busy { background: #fff0dd; border-color: #ffbf7a; }
+.chip:disabled { filter: grayscale(.4) opacity(.6); }
+
+.hint {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #a5815c;
+  line-height: 1.6;
+  min-height: 17px;
+}
+.hint.bad { color: #d64545; font-weight: 700; }
+
+.code {
+  font-size: 54px;
+  font-weight: 900;
+  letter-spacing: 8px;
+  color: #ff7a3d;
+  font-variant-numeric: tabular-nums;
+  margin: 4px 0 10px;
+  text-indent: 8px;
+}
+
+.dots {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  margin: 4px 0 12px;
+}
+.dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffbe5c;
+  animation: dot 1s infinite ease-in-out;
+}
+.dots i:nth-child(2) { animation-delay: .15s; }
+.dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes dot {
+  0%, 100% { opacity: .3; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-4px); }
+}
+
+.rtitle {
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: #e8663d;
+  margin: 2px 0 4px;
+}
+.rtitle.lose { color: #7d8a99; }
+.rsub { font-size: 13px; color: #8a6a4a; margin-bottom: 14px; }
+
+.rgrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 12px 4px;
+  border-radius: 16px;
+  background: #fff0dd;
+  margin-bottom: 10px;
+}
+.rgrid div { display: flex; flex-direction: column; gap: 2px; }
+.rgrid b {
+  font-size: 21px;
+  color: #3a2a22;
+  font-variant-numeric: tabular-nums;
+}
+.rgrid span { font-size: 10px; color: #a5815c; }
+
+.rwhy {
+  font-size: 12px;
+  color: #8a6a4a;
+  margin-bottom: 12px;
+  min-height: 16px;
+  line-height: 1.5;
+}
+
+/* ---------------- 结算里的错题明细 ----------------
+   结算卡片本来是给「一行数字」设计的，塞进错题会撑爆屏幕，
+   所以这里给它自己的滚动区：最多占 30vh，超出就滚。 */
+.rwrong {
+  max-height: 30vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  text-align: left;
+  margin: 0 0 12px;
+}
+.rw-t {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #a5815c;
+  letter-spacing: .06em;
+  margin: 0 2px 7px;
+}
+.rw-none { font-size: 12.5px; color: #3f9b74; font-weight: 700; padding: 6px 0; }
+.rw-item {
+  background: #fffaf3;
+  border-radius: 12px;
+  padding: 9px 11px;
+  margin-bottom: 7px;
+  border-left: 3px solid #e8663d;
+}
+.rw-q {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #3a2a22;
+  line-height: 1.45;
+  word-break: break-word;
+}
+.rw-l {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+  margin-top: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.rw-l i {
+  flex: none;
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 900;
+  border-radius: 5px;
+  padding: 1px 5px;
+  margin-top: 1px;
+}
+.rw-l span { flex: 1; min-width: 0; word-break: break-word; }
+.rw-l.bad i { background: #ffe3e3; color: #d4443f; }
+.rw-l.bad span { color: #c33f3f; text-decoration: line-through; text-decoration-color: #f3b4b4; }
+.rw-l.ok i { background: #e2f6ea; color: #1f8a5c; }
+.rw-l.ok span { color: #1f8a5c; }
+.rw-tip {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: #8a6a2f;
+  background: #fff5e2;
+  border-radius: 8px;
+  padding: 6px 9px;
+  line-height: 1.5;
+}
+
+/* ---------------- 大屏（iPad） ---------------- */
+@media (min-width: 700px) and (min-height: 600px) {
+  #panel { height: 38%; padding: 12px 26px calc(env(safe-area-inset-bottom) + 12px); }
+  #qmeta { font-size: 13px; height: 24px; }
+  #qbody { gap: 12px; }
+  .qwrap .cn { font-size: 38px; }
+  .qwrap .pos { font-size: 13px; }
+  .slot { width: 30px; height: 38px; font-size: 25px; }
+  .slots { gap: 7px; }
+  .kb { gap: 8px; max-width: 780px; margin: 0 auto; width: 100%; }
+  .key { height: 54px; font-size: 20px; border-radius: 13px; }
+  .prompt { font-size: 25px; }
+  .opt { font-size: 19px; min-height: 58px; }
+  .opts { max-width: 780px; margin: 0 auto; width: 100%; gap: 10px; }
+  #hud { top: calc(env(safe-area-inset-top) + 12px); left: 22px; right: 22px; }
+  #hud .nm b { font-size: 15px; }
+  #hud .bar { height: 15px; max-width: 320px; }
+  #hud .side.right .bar { margin-left: auto; }
+  #hud .clock { font-size: 21px; }
+  #hud .combo { font-size: 13px; }
+  .card { width: min(88vw, 470px); padding: 26px 26px 22px; }
+  .btn { height: 56px; font-size: 19px; }
+  .join input { height: 56px; }
+  .code { font-size: 66px; }
+  .rtitle { font-size: 42px; }
+  .rgrid b { font-size: 26px; }
+}
+
+/* 平板横屏（宽但不高）：键盘不能按竖屏那套 54px，
+   否则四行键盘会把题干挤没，字会压到格子上 */
+@media (min-width: 700px) and (max-height: 900px) {
+  #panel { height: 40%; padding: 8px 26px calc(env(safe-area-inset-bottom) + 8px); }
+  #qmeta { height: 20px; }
+  #qbody { gap: 8px; padding-top: 2px; }
+  .qwrap { gap: 8px; }
+  .qwrap .cn { font-size: 31px; }
+  .slot { width: 26px; height: 32px; font-size: 21px; }
+  .kb { gap: 6px; }
+  .key { height: 45px; font-size: 18px; }
+  .prompt { font-size: 23px; }
+  .opt { min-height: 48px; font-size: 17px; }
+}
+
+/* 手机横屏：高度很紧，把面板压扁一点，键盘矮一点 */
+@media (max-height: 540px) {
+  #panel { height: 50%; min-height: 0; padding-top: 4px; }
+  .qwrap { gap: 4px; }
+  .qwrap .cn { font-size: 20px; }
+  .slot { height: 24px; width: 20px; font-size: 16px; }
+  .key { height: 34px; font-size: 15px; }
+  .kb { gap: 4px; }
+  .prompt { font-size: 16px; }
+  .opt { min-height: 38px; font-size: 14px; padding: 4px 8px; }
+  .card { padding: 14px; }
+  .card h1 { font-size: 22px; }
+  .code { font-size: 40px; margin: 0 0 6px; }
+  .btn { height: 44px; font-size: 16px; }
+  .join input { height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card, .fb, .dots i { animation: none !important; }
+}
+
+/* ---- 独立版：大厅填名字（原版是从学习档案里读的） ---- */
+.whoRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 50px;
+  margin: 0 0 10px;
+  padding: 0 14px;
+  border: 2px solid #ffd9a8;
+  border-radius: 15px;
+  background: #fff;
+}
+.whoRow .whoLabel {
+  flex: 0 0 auto;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: #a5815c;
+  white-space: nowrap;
+}
+.whoRow input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 800;
+  color: #3a2a22;
+  text-align: left;
+}
+.whoRow input::placeholder { font-size: 13px; font-weight: 600; color: #c9ab8b; }

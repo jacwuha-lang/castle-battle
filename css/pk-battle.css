@@ -1,0 +1,116 @@
+/* 战斗界面：两侧城堡状态固定在顶部，中间保留独立计时牌。 */
+#hud {
+  z-index: 3;
+  top: calc(env(safe-area-inset-top) + 10px);
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: start;
+  gap: clamp(8px, 2vw, 24px);
+}
+#hud .side {
+  position: relative;
+  width: min(100%, 390px);
+  min-width: 0;
+  padding: 7px 12px 9px 48px;
+  border: 2px solid #d0a85c;
+  border-radius: 13px 9px 13px 9px;
+  background: linear-gradient(120deg, #102c56ed, #14213ce8);
+  box-shadow: 0 3px 0 #4c341d, 0 5px 12px #16243277, inset 0 1px #fbe1a580;
+}
+#hud .side::before {
+  content: '⚔';
+  position: absolute;
+  top: 50%; left: 8px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 30px; height: 30px;
+  border: 2px solid #f5d181;
+  border-radius: 50%;
+  color: #fff1bc;
+  background: radial-gradient(circle at 35% 25%, #58a7f5, #15437c 70%);
+  box-shadow: 0 0 0 2px #60451f;
+  font-size: 17px;
+}
+#hud .side.right {
+  justify-self: end;
+  padding: 7px 48px 9px 12px;
+  background: linear-gradient(240deg, #79292bee, #361f2be8);
+}
+#hud .side.right::before {
+  content: '♜';
+  left: auto; right: 8px;
+  background: radial-gradient(circle at 35% 25%, #f17a62, #8a2428 70%);
+}
+#hud .nm { gap: 6px; margin-bottom: 5px; line-height: 1.15; }
+#hud .nm b { font-size: clamp(12px, 1.2vw, 17px); }
+#hud .nm span { background: #0b142a80; font-size: 10px; }
+#hud .nm .lv { color: #ffeba9; background: #5c3b23; border: 1px solid #d3ac5f; }
+#hud .bar {
+  position: relative;
+  height: 18px;
+  max-width: none;
+  border: 2px solid #d5b773;
+  background: #171b28;
+  box-shadow: inset 0 2px 3px #0009, 0 1px 2px #0007;
+}
+#hud .bar i { box-shadow: inset 0 2px 2px #ffffff8c, inset 0 -3px 4px #0004; }
+#hpMe { background: linear-gradient(#8de7ff, #20a4e6 50%, #0753a2); }
+#hpOp { background: linear-gradient(#ffb7a0, #eb4846 50%, #951b25); }
+#hud .hpText {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  color: white;
+  font-size: 10px; font-weight: 900; line-height: 1;
+  text-shadow: 0 1px 2px #11233c, 0 0 3px #11233c;
+}
+#hud .center {
+  position: relative;
+  min-width: 142px;
+  min-height: 55px;
+  padding: 5px 12px 6px;
+  border: 2px solid #dcb868;
+  border-radius: 11px 11px 18px 18px;
+  background: linear-gradient(135deg, #253c59f2, #101d33f2);
+  box-shadow: 0 3px 0 #62431f, inset 0 1px #ffebae88, 0 5px 12px #13202c55;
+}
+#hud .clock-label { font-size: 10px; letter-spacing: 1px; font-weight: 800; color: #f3d599; }
+#hud .clock { font-size: clamp(20px, 2.25vw, 31px); line-height: 1; letter-spacing: 1px; }
+#hud .combo { color: #ffdc7e; }
+#hud .combo:empty, #hud .comboNext:empty { display: none; }
+#hud .comboNext { color: #f5e7c4; }
+#hud .mute { bottom: -37px; border: 1px solid #dbb86c; background: #16243ddd; }
+#panel {
+  border-radius: 16px 16px 0 0;
+  border-top: 4px solid #967043;
+  background: radial-gradient(120% 90% at 50% 0%, #fff9e8 0%, #f5e5c8 74%, #e8d0a5 100%);
+  box-shadow: 0 -3px 0 #e6c67e, 0 -9px 24px #17263755, inset 0 3px #fff3cf;
+}
+#panel::before { height: 3px; background: linear-gradient(90deg, #6c4a2b, #f5d995 48%, #6c4a2b); }
+#qmeta .tag { color: #ffeec0; background: linear-gradient(#345d86, #183858); box-shadow: 0 1px #937044; }
+.qwrap.word, .prompt {
+  background: linear-gradient(#fffaf0, #f7ead1);
+  box-shadow: 0 2px 0 #b99563, inset 0 0 0 1px #fff7dd;
+}
+.opt {
+  background: linear-gradient(#fffaf0, #f3e3c6);
+  border-color: #d1aa70;
+  box-shadow: 0 2px 0 #a77d4a, inset 0 1px #fff;
+}
+.opt i { background: #72502d; color: #fff0cb; }
+@media (max-width: 650px) {
+  #hud { top: calc(env(safe-area-inset-top) + 5px); left: 5px; right: 5px; gap: 4px; }
+  #hud .side, #hud .side.right { padding: 5px 5px 6px; border-radius: 8px; }
+  #hud .side::before { display: none; }
+  #hud .nm { gap: 3px; margin-bottom: 3px; }
+  #hud .nm b { font-size: 11px; max-width: 6em; }
+  #hud .nm span, #hud .nm .lv { font-size: 9px; padding: 0 3px; }
+  #hud .bar { height: 13px; }
+  #hud .hpText { font-size: 8px; }
+  #hud .center { min-width: 74px; min-height: 43px; padding: 3px 5px 4px; border-radius: 8px 8px 11px 11px; }
+  #hud .clock-label { font-size: 8px; letter-spacing: 0; }
+  #hud .clock { font-size: 18px; }
+  #hud .combo, #hud .comboNext { font-size: 9px; }
+}
