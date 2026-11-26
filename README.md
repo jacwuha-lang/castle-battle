@@ -4,6 +4,13 @@
 一个模块，这里已经完整拆出来：**本目录自带题库、自带服务器、不读上层任何文件**，
 复制走整个 `castle-battle` 文件夹就能单独玩。
 
+仓库地址：<https://github.com/jacwuha-lang/castle-battle>
+
+```bash
+git clone https://github.com/jacwuha-lang/castle-battle.git
+cd castle-battle
+```
+
 ## 怎么打开
 
 Windows：双击 `start.bat`（启动脚本与命令行输出都是纯英文，避免编码问题）
